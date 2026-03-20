@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бүрэн Дата: Компаниудын Зах Зээлийн Нөлөөлөл</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0d1117;
+            font-family: 'Inter', Arial, sans-serif;
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 15px 30px;
+            background-color: #161b22;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .title-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .title-box h1 { margin: 0; font-size: 20px; font-weight: 800; }
+        .title-box p { margin: 4px 0 0 0; font-size: 13px; color: #8b949e; }
+
+        /* Олон цэс багтаахын тулд scroll хийдэг болгосон */
+        .tabs { 
+            display: flex; 
+            gap: 8px; 
+            overflow-x: auto; 
+            padding-bottom: 5px;
+            scrollbar-width: thin;
+            scrollbar-color: #30363d #161b22;
+        }
+        
+        .tabs::-webkit-scrollbar { height: 6px; }
+        .tabs::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+        .tab-btn {
+            background-color: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover { background-color: #30363d; }
+        .tab-btn.active {
+            background-color: #2f81f7;
+            color: #ffffff;
+            border-color: #2f81f7;
+            box-shadow: 0 0 10px rgba(47, 129, 247, 0.4);
+        }
+
+        .legend {
+            height: 20px;
+            display: flex;
+            gap: 20px;
+            padding: 10px 30px;
+            background-color: #0d1117;
+            font-size: 13px;
+            font-weight: 600;
+            justify-content: center;
+        }
+
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .color-box { width: 14px; height: 14px; border-radius: 3px; }
+        .c-green { background-color: #238636; }
+        .c-orange { background-color: #d29922; }
+        .c-red { background-color: #da3633; }
+
+        #chart-container {
+            width: 100%;
+            height: calc(100vh - 160px);
+            padding: 0 15px 15px 15px;
+            box-sizing: border-box;
+        }
+
+        #main {
+            width: 100%;
+            height: 100%;
+            background-color: #0d1117;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="title-box">
+            <div>
+                <h1>Компаниудын Зах Зээлийн Нөлөөлөл</h1>
+                <p>Бүх 20 салбарын 240+ компаниудыг харьцуулах нь</p>
+            </div>
+        </div>
+        <div class="tabs" id="tabs-container"></div>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item"><div class="color-box c-green"></div> Possible</div>
+        <div class="legend-item"><div class="color-box c-orange"></div> Cannot ecosystem player</div>
+        <div class="legend-item"><div class="color-box c-red"></div> Not possible</div>
+    </div>
+
+    <div id="chart-container">
+        <div id="main"></div>
+    </div>
+
+    <script>
+        var myChart = null;
+        const colorGreen = '#238636'; 
+        const colorOrange = '#d29922';
+        const colorRed = '#da3633';
+
+        // Таны CSV-ээс бүрэн уншиж авсан 240+ компанийн дата
+        // st: 1 = Possible (Green), 2 = Not possible (Red), 3 = Can not (Orange)
+        const allData = [
+            { s: "Telco", n: "Mobicom", st: 1, v: 360, ar: "-", ms: "36.85%", pct: "36.85%" },
+            { s: "Telco", n: "Unitel", st: 3, v: 320, ar: "-", ms: "32.24%", pct: "32.24%" },
+            { s: "Telco", n: "Skytel", st: 1, v: 180, ar: "-", ms: "18.62%", pct: "18.62%" },
+            { s: "Telco", n: "G-mobile", st: 1, v: 90, ar: "-", ms: "9.49%", pct: "9.49%" },
+            { s: "Telco", n: "Ondo", st: 1, v: 50, ar: "-", ms: "2.80%", pct: "2.80%" },
+            { s: "Telco", n: "Lime", st: 1, v: 30, ar: "-", ms: "1%<", pct: "1%<" },
+            { s: "Chain Retailers", n: "Nomin", st: 3, v: 300, ar: "-", ms: "Tier 1", pct: null },
+            { s: "Chain Retailers", n: "Carrefour", st: 1, v: 150, ar: "-", ms: "Tier 2", pct: null },
+            { s: "Chain Retailers", n: "CU", st: 1, v: 300, ar: "-", ms: "Tier 1", pct: null },
+            { s: "Chain Retailers", n: "GS25", st: 3, v: 300, ar: "-", ms: "Tier 1", pct: null },
+            { s: "Chain Retailers", n: "Emart", st: 1, v: 300, ar: "-", ms: "Tier 1", pct: null },
+            { s: "Chain Retailers", n: "O'resh", st: 1, v: 80, ar: "-", ms: "Tier 3", pct: null },
+            { s: "Chain Retailers", n: "Orgil", st: 1, v: 150, ar: "-", ms: "Tier 2", pct: null },
+            { s: "Chain Retailers", n: "M-Mart", st: 3, v: 80, ar: "-", ms: "Tier 3", pct: null },
+            { s: "Chain Retailers", n: "Minii Delguur", st: 1, v: 80, ar: "-", ms: "Tier 3", pct: null },
+            { s: "Chain Retailers", n: "Goodprice", st: 1, v: 150, ar: "-", ms: "Tier 2", pct: null },
+            { s: "Chain Retailers", n: "C24", st: 1, v: 80, ar: "-", ms: "Tier 3", pct: null },
+            { s: "Insurance", n: "Ard Daatgal", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Insurance", n: "Nomin Daatgal", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Insurance", n: "Amar Daatgal", st: 1, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Insurance", n: "MIG Daatgal", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Insurance", n: "Practical Daatgal", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Insurance", n: "Agula Daatgal", st: 1, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Insurance", n: "Mandal Daatgal", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Insurance", n: "Bodi Daatgal", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Insurance", n: "National Life", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Insurance", n: "Khaan Daatgal", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Insurance", n: "Mongol Daatgal", st: 1, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Insurance", n: "Tenger Daatgal", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Import & Distribution", n: "Mongolian Star Distribution", st: 1, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Import & Distribution", n: "Naran Distribution", st: 1, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Import & Distribution", n: "Anungoo", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Import & Distribution", n: "Nano International", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Import & Distribution", n: "Tavan Bogd International", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Import & Distribution", n: "MSM Betastar", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Import & Distribution", n: "Market Gate", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Import & Distribution", n: "GGI", st: 1, v: 80, ar: "-", ms: "Small/Niche", pct: null },
+            { s: "Import & Distribution", n: "Javkhlant Distribution", st: 1, v: 80, ar: "-", ms: "Small/Niche", pct: null },
+            { s: "Import & Distribution", n: "Zebra International", st: 1, v: 80, ar: "-", ms: "Small/Niche", pct: null },
+            { s: "Import & Distribution", n: "Altan Joloo Impex", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Import & Distribution", n: "Bishrelt Trade", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Import & Distribution", n: "Cosmo Trade", st: 1, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Import & Distribution", n: "Nomin Distribution", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Import & Distribution", n: "U-Foods", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Import & Distribution", n: "Delta Foods", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Өргөн хэрэглээний хүнсний импорт, түгээлтийн томоохон тоглогч" },
+            { s: "Import & Distribution", n: "Prosum International", st: 1, v: 80, ar: "-", ms: "Small/Niche", pct: null },
+            { s: "Import & Distribution", n: "CRM LLC", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Import & Distribution", n: "APU distribution", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Import & Distribution", n: "GSM Group", st: 1, v: 80, ar: "-", ms: "Small/Niche", pct: null },
+            { s: "Import & Distribution", n: "Ento LLC", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Import & Distribution", n: "GrandMed Pharm", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Import & Distribution", n: "Tsombo LLC", st: 1, v: 80, ar: "-", ms: "Small/Niche", pct: null },
+            { s: "Import & Distribution", n: "Lenus Med", st: 1, v: 80, ar: "-", ms: "Small/Niche", pct: null },
+            { s: "Import & Distribution", n: "SunMed", st: 1, v: 80, ar: "-", ms: "Small/Niche", pct: null },
+            { s: "Investment", n: "Ard Financial Group", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Investment", n: "Rhinos Investment", st: 1, v: 80, ar: "-", ms: "Small / niche", pct: null },
+            { s: "Investment", n: "Invescore", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Investment", n: "Mandal Financial Group", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Investment", n: "Transcapital NBFI", st: 2, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Development Bank", st: 2, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Investment", n: "BID", st: 2, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Bichil Globus NBFI", st: 2, v: 80, ar: "-", ms: "Small / niche", pct: null },
+            { s: "Investment", n: "Net Capital", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Gund Investment", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Mandal Capital", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Golomt Capital", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "BDSecurities", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Ulzii&Co Capital", st: 1, v: 80, ar: "-", ms: "Small / niche", pct: null },
+            { s: "Investment", n: "TDB Securities", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Apex Capital", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "InvesCore Capital", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Ard Securities", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Tavan Bogd Capital", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Tenger Financial Group", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Investment", n: "MICC", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Mirae Asset", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Investment", n: "Standard Investment", st: 1, v: 80, ar: "-", ms: "Small / niche", pct: null },
+            { s: "Investment", n: "Monsec", st: 1, v: 80, ar: "-", ms: "Small / niche", pct: null },
+            { s: "Investment", n: "Novel Investment", st: 1, v: 80, ar: "-", ms: "Small / niche", pct: null },
+            { s: "Investment", n: "Monet Capital", st: 1, v: 80, ar: "-", ms: "Small / niche", pct: null },
+            { s: "Investment", n: "Bumbat-Altai", st: 1, v: 80, ar: "-", ms: "Small / niche", pct: null },
+            { s: "Investment", n: "Unet Securities", st: 1, v: 80, ar: "-", ms: "Small / niche", pct: null },
+            { s: "Fintech", n: "Ard Credit NBFI", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Fintech", n: "Sendly", st: 2, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "Qpay", st: 1, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Fintech", n: "Storepay", st: 1, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Fintech", n: "Monpay", st: 3, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "Simple", st: 3, v: 250, ar: "-", ms: "Medium", pct: "Large" },
+            { s: "Fintech", n: "LendMN", st: 1, v: 300, ar: "-", ms: "Large", pct: "Medium" },
+            { s: "Fintech", n: "Pocket", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Fintech", n: "SocialPay", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Fintech", n: "Numur", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Fintech", n: "HiPay", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Fintech", n: "Trade Exchange", st: 1, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "Corex", st: 1, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "Tus Solutions", st: 3, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "Toki", st: 3, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Fintech", n: "Bonum", st: 1, v: 300, ar: "-", ms: "Large", pct: null },
+            { s: "Fintech", n: "SendMN", st: 1, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Fintech", n: "BurenScore", st: 1, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "SainScore", st: 1, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "Sono", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Fintech", n: "MostMoney", st: 3, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "Pass.mn", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Fintech", n: "Zeely", st: 2, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "EasyLoan MN", st: 2, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "PayOn", st: 3, v: 150, ar: "-", ms: "Medium", pct: null },
+            { s: "Fintech", n: "MyCredit", st: 2, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "CashOne", st: 2, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "Naizly", st: 2, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "EntCreditMN", st: 2, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Fintech", n: "ZeelMe", st: 2, v: 80, ar: "-", ms: "Small", pct: null },
+            { s: "Commercial Banks", n: "Khan Bank", st: 2, v: 300, ar: null, ms: null, pct: "29% of asset share" },
+            { s: "Commercial Banks", n: "TDB", st: 3, v: 210, ar: null, ms: null, pct: "21% of asset share" },
+            { s: "Commercial Banks", n: "Golomt Bank", st: 3, v: 200, ar: null, ms: null, pct: "20.2% of asset share" },
+            { s: "Commercial Banks", n: "Xac Bank", st: 3, v: 90, ar: null, ms: null, pct: "9.2% of asset share" },
+            { s: "Commercial Banks", n: "Bogd Bank", st: 2, v: 80, ar: "~₮110–150 billion", ms: null, pct: null },
+            { s: "Commercial Banks", n: "Capitron Bank", st: 1, v: 100, ar: null, ms: null, pct: null },
+            { s: "Commercial Banks", n: "M Bank", st: 3, v: 150, ar: "~ MNT 150–300 billion", ms: null, pct: null },
+            { s: "Commercial Banks", n: "Arig Bank", st: 2, v: 80, ar: "< MNT 200 billion", ms: null, pct: null },
+            { s: "Commercial Banks", n: "Trans Bank", st: 1, v: 100, ar: "MNT 300–500 billion", ms: null, pct: null },
+            { s: "Commercial Banks", n: "State Bank", st: 2, v: 200, ar: "MNT 350–600 billion", ms: null, pct: null },
+            { s: "Commercial Banks", n: "Chinggis Khaan Bank", st: 1, v: 80, ar: "~ MNT 50–120 billion", ms: null, pct: null },
+            { s: "Commercial Banks", n: "NI Bank", st: 1, v: 80, ar: "MNT 80–150 billion", ms: null, pct: null },
+            { s: "Oil & Gas", n: "Shunkhlai LLC", st: 3, v: 300, ar: null, ms: "Largest", pct: "20%" },
+            { s: "Oil & Gas", n: "Petrovis LLC", st: 1, v: 300, ar: null, ms: "Largest", pct: "20%" },
+            { s: "Oil & Gas", n: "Sod Mongol Group", st: 1, v: 200, ar: null, ms: "Large", pct: "12%" },
+            { s: "Oil & Gas", n: "Magnai Trade LLC", st: 1, v: 150, ar: null, ms: "Large", pct: "8%" },
+            { s: "Oil & Gas", n: "Tes Petroleum", st: 1, v: 150, ar: null, ms: "Large", pct: "8%" },
+            { s: "Oil & Gas", n: "ICIC LLC", st: 1, v: 150, ar: null, ms: "Medium/Large", pct: "7%" },
+            { s: "Oil & Gas", n: "Mon Suli LLC", st: 1, v: 100, ar: null, ms: "Medium", pct: "4%" },
+            { s: "Oil & Gas", n: "M-Oil LLC", st: 1, v: 80, ar: null, ms: "Small", pct: "2%" },
+            { s: "Oil & Gas", n: "Petro Khan LLC", st: 1, v: 80, ar: null, ms: "Small", pct: "2%" },
+            { s: "Oil & Gas", n: "Lex Oil LLC", st: 1, v: 80, ar: null, ms: "Small", pct: "2%" },
+            { s: "Oil & Gas", n: "Super 92", st: 1, v: 50, ar: null, ms: "Small", pct: "<1%" },
+            { s: "Oil & Gas", n: "Gor Gas LLC", st: 1, v: 50, ar: null, ms: "Small", pct: "<1%" },
+            { s: "Holding & Group", n: "MCS Group", st: 3, v: 300, ar: "MNT 7.2 trillion", ms: null, pct: null },
+            { s: "Holding & Group", n: "Tavan Bogd Group", st: 3, v: 300, ar: "~ MNT 3.5 trillion", ms: null, pct: null },
+            { s: "Holding & Group", n: "Shunkhlai Group", st: 3, v: 300, ar: "MNT 2 trillion", ms: null, pct: null },
+            { s: "Holding & Group", n: "Nomin Holding", st: 3, v: 300, ar: "USD 400 million", ms: null, pct: null },
+            { s: "Holding & Group", n: "Altai Holding", st: 3, v: 300, ar: null, ms: null, pct: null },
+            { s: "Holding & Group", n: "Bodi Group", st: 3, v: 300, ar: null, ms: null, pct: null },
+            { s: "Holding & Group", n: "Altan Joloo Group", st: 1, v: 250, ar: "~ MNT 700–900 billion", ms: null, pct: null },
+            { s: "Holding & Group", n: "Max Group", st: 3, v: 300, ar: "~ MNT 1.2 trillion", ms: null, pct: null },
+            { s: "Holding & Group", n: "Premium Group", st: 3, v: 250, ar: "~ MNT 700–900 billion", ms: null, pct: null },
+            { s: "Holding & Group", n: "Teso Group", st: 3, v: 300, ar: null, ms: null, pct: null },
+            { s: "Holding & Group", n: "Monnis", st: 3, v: 300, ar: "USD 400 million", ms: null, pct: null },
+            { s: "Holding & Group", n: "Bosa Holding", st: 1, v: 150, ar: null, ms: null, pct: null },
+            { s: "Holding & Group", n: "Bishrelt Group", st: 1, v: 150, ar: null, ms: null, pct: null },
+            { s: "Holding & Group", n: "Ochirundraa Group", st: 1, v: 150, ar: "MNT 250-300 billion", ms: null, pct: null },
+            { s: "Holding & Group", n: "Petrovis Group", st: 1, v: 300, ar: null, ms: null, pct: null },
+            { s: "Holding & Group", n: "Next Group", st: 3, v: 150, ar: null, ms: null, pct: null },
+            { s: "Health", n: "Monos", st: 1, v: 300, ar: null, ms: "Large", pct: null },
+            { s: "Health", n: "Азифарм", st: 1, v: 300, ar: null, ms: "Large", pct: null },
+            { s: "Health", n: "Нахиа", st: 1, v: 150, ar: null, ms: null, pct: null },
+            { s: "Health", n: "Монгол эм импекс", st: 1, v: 300, ar: null, ms: "Large", pct: null },
+            { s: "Health", n: "Энто ХХК", st: 1, v: 80, ar: null, ms: "Small", pct: null },
+            { s: "Health", n: "Цахиур төмөр", st: 1, v: 80, ar: null, ms: "Small", pct: null },
+            { s: "Health", n: "Мөнхийн Тун", st: 1, v: 200, ar: null, ms: "Medium/Large", pct: null },
+            { s: "Health", n: "Еврофарм", st: 1, v: 80, ar: null, ms: "Small", pct: null },
+            { s: "Health", n: "IVCO Healthcare", st: 1, v: 100, ar: null, ms: "Small/Medium", pct: null },
+            { s: "Health", n: "MONFA", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Sales & Trade", n: "Шинэ Сонголт", st: 1, v: 300, ar: null, ms: "Large (Furniture)", pct: null },
+            { s: "Sales & Trade", n: "Аз Хур", st: 1, v: 300, ar: null, ms: "Large", pct: null },
+            { s: "Sales & Trade", n: "Internom", st: 1, v: 200, ar: null, ms: "Medium/Large", pct: null },
+            { s: "Sales & Trade", n: "Cloud Nine", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Sales & Trade", n: "PC mall", st: 3, v: 300, ar: null, ms: "Large (Big electronics retailer)", pct: null },
+            { s: "Sales & Trade", n: "BTF", st: 1, v: 300, ar: null, ms: "Large (Fashion retail)", pct: null },
+            { s: "Sales & Trade", n: "Beauty Secrets", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Sales & Trade", n: "Technozone", st: 3, v: 300, ar: null, ms: "Large (Samsung distributor)", pct: null },
+            { s: "Sales & Trade", n: "Next Electronics", st: 1, v: 300, ar: null, ms: "Large (Big electronics retailer)", pct: null },
+            { s: "Sales & Trade", n: "BSB", st: 3, v: 300, ar: null, ms: "Large", pct: null },
+            { s: "Sales & Trade", n: "Ayanchin Outfitters", st: 1, v: 80, ar: null, ms: "Small", pct: null },
+            { s: "Startup Hub", n: "Intelmind", st: 3, v: 300, ar: null, ms: "Tier 1", pct: null },
+            { s: "Startup Hub", n: "MStars", st: 3, v: 150, ar: null, ms: null, pct: null },
+            { s: "Startup Hub", n: "Socratus", st: 1, v: 150, ar: null, ms: "Tier 2", pct: null },
+            { s: "Startup Hub", n: "#hub innovation", st: 1, v: 80, ar: null, ms: "Tier 3", pct: null },
+            { s: "Startup Hub", n: "ICT Group", st: 1, v: 300, ar: null, ms: "Tier 1", pct: null },
+            { s: "Startup Hub", n: "MCS Ventures", st: 3, v: 300, ar: null, ms: "Tier 1", pct: null },
+            { s: "Startup Hub", n: "iT Park", st: 1, v: 150, ar: null, ms: "Tier 2", pct: null },
+            { s: "Startup Hub", n: "Exponential Zaisan", st: 1, v: 150, ar: null, ms: "Tier 2", pct: null },
+            { s: "Agency", n: "JCDecaux", st: 1, v: 300, ar: null, ms: "Large (Tier 1)", pct: null },
+            { s: "Agency", n: "Viral. Marketing", st: 1, v: 300, ar: null, ms: "Large (Tier 1)", pct: null },
+            { s: "Agency", n: "Монголын Маркетинг", st: 1, v: 300, ar: null, ms: "Large (Influence)", pct: "Primary standard setting body" },
+            { s: "Agency", n: "Spark Agency", st: 1, v: 200, ar: null, ms: "Medium/Large", pct: "Very fast growing" },
+            { s: "Agency", n: "nebula agency", st: 1, v: 80, ar: null, ms: "Small", pct: null },
+            { s: "Agency", n: "MMCG", st: 1, v: 300, ar: null, ms: "Large - Tier 1", pct: null },
+            { s: "Agency", n: "suuder.", st: 1, v: 80, ar: null, ms: "Small", pct: null },
+            { s: "Agency", n: "adsmart", st: 3, v: 300, ar: null, ms: "Large - Tier 1", pct: null },
+            { s: "Agency", n: "ORGILMEDIA", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Agency", n: "Axiom", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Logistics", n: "УБ Төмөр Зам", st: 2, v: 300, ar: null, ms: null, pct: null },
+            { s: "Logistics", n: "UBCab", st: 3, v: 300, ar: null, ms: "Tier 1", pct: null },
+            { s: "Logistics", n: "Eznis Airways", st: 2, v: 50, ar: null, ms: "Tier 50", pct: null },
+            { s: "Logistics", n: "AERO Mongolia", st: 3, v: 150, ar: "USD 65 million (2024)", ms: "Tier 2", pct: null },
+            { s: "Logistics", n: "Монгол Шуудан", st: 2, v: 300, ar: null, ms: "Tier 1", pct: "Presence in every сум" },
+            { s: "Logistics", n: "Монголын Төмөр Зам", st: 2, v: 150, ar: null, ms: "Tier 2", pct: null },
+            { s: "Logistics", n: "Туушин", st: 1, v: 300, ar: null, ms: "Tier 1", pct: null },
+            { s: "Logistics", n: "МИАТ", st: 2, v: 300, ar: "MNT 880 billion (2023)", ms: "Tier 1", pct: null },
+            { s: "Logistics", n: "Monlogistics", st: 1, v: 300, ar: "MNT 290 billion (2025 IV)", ms: "Tier 1", pct: null },
+            { s: "Logistics", n: "Hunnu Air", st: 3, v: 150, ar: "USD 34 million (2024)", ms: "Tier 2", pct: null },
+            { s: "Logistics", n: "LandBridge", st: 1, v: 150, ar: null, ms: "Tier 2", pct: null },
+            { s: "Logistics", n: "Tapaaba", st: 1, v: 80, ar: null, ms: "Tier 3", pct: null },
+            { s: "Retail & Malls", n: "Ikh Nayd", st: 1, v: 150, ar: "300", ms: "Medium", pct: null },
+            { s: "Retail & Malls", n: "Narantuul", st: 1, v: 300, ar: "8000", ms: "Large", pct: null },
+            { s: "Retail & Malls", n: "Ikh Delguur", st: 1, v: 300, ar: null, ms: "Large", pct: null },
+            { s: "Retail & Malls", n: "UB Ikh Delguur", st: 1, v: 150, ar: null, ms: "Large", pct: null },
+            { s: "Retail & Malls", n: "Dunjingarav", st: 1, v: 300, ar: "600", ms: "Large", pct: null },
+            { s: "Retail & Malls", n: "Misheel Expo", st: 1, v: 300, ar: null, ms: "Large", pct: null },
+            { s: "Retail & Malls", n: "Sunday Plaza", st: 1, v: 300, ar: "400", ms: "Large", pct: null },
+            { s: "Retail & Malls", n: "Gem Palace", st: 2, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Retail & Malls", n: "Bumbugur", st: 2, v: 300, ar: "400", ms: "Large", pct: null },
+            { s: "Retail & Malls", n: "Shangri La Mall", st: 3, v: 300, ar: null, ms: "Large", pct: null },
+            { s: "Retail & Malls", n: "Hunnu Mall", st: 1, v: 80, ar: null, ms: "Smalll", pct: null },
+            { s: "Retail & Malls", n: "Tumen Mall", st: 1, v: 80, ar: null, ms: "Smalll", pct: null },
+            { s: "Retail & Malls", n: "100ail", st: 2, v: 300, ar: null, ms: "Large", pct: null },
+            { s: "Retail & Malls", n: "UB Mall", st: 1, v: 80, ar: null, ms: "Small", pct: null },
+            { s: "Retail & Malls", n: "United Mall", st: 1, v: 80, ar: null, ms: "Small", pct: null },
+            { s: "Retail & Malls", n: "Kharkhorin", st: 1, v: 300, ar: "1000", ms: "Large", pct: null },
+            { s: "Retail & Malls", n: "Park Od Mall", st: 1, v: 80, ar: null, ms: "Small", pct: null },
+            { s: "Retail & Malls", n: "Computer Land", st: 2, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Retail & Malls", n: "Night Plaza", st: 1, v: 80, ar: "400", ms: "Small/Niche", pct: null },
+            { s: "Retail & Malls", n: "Mungun Zaviya", st: 2, v: 80, ar: null, ms: "Small/Niche", pct: null },
+            { s: "Retail & Malls", n: "Encanto", st: 1, v: 150, ar: null, ms: "Small/Medium", pct: null },
+            { s: "Retail & Malls", n: "Sodon Bumbugur", st: 1, v: 150, ar: null, ms: null, pct: null },
+            { s: "Retail & Malls", n: "Da Khuree", st: 1, v: 200, ar: null, ms: "Medium/Large", pct: null },
+            { s: "Retail & Malls", n: "Tedy", st: 3, v: 300, ar: null, ms: "Large ", pct: null },
+            { s: "Retail & Malls", n: "Uguumur", st: 1, v: 300, ar: null, ms: "Large (auto repair)", pct: null },
+            { s: "Retail & Malls", n: "Uran Gan", st: 1, v: 150, ar: null, ms: "Medium (auto sale)", pct: null },
+            { s: "Light Industry", n: "Gobi Cashmere", st: 3, v: 300, ar: "MNT 246.2 billion", ms: "Large", pct: "71%" },
+            { s: "Light Industry", n: "Blue Sky Cashmere", st: 1, v: 150, ar: null, ms: "Medium", pct: "BSC exports 80% of its product to over 10 countries, including japan, korea" },
+            { s: "Light Industry", n: "Altangadas", st: 1, v: 150, ar: null, ms: "Medium", pct: "KT&G distributor (cigarette)" },
+            { s: "Light Industry", n: "Mongol Tamhi", st: 2, v: 300, ar: null, ms: "Large", pct: null },
+            { s: "Light Industry", n: "Gobi Khangai Mebel", st: 1, v: 200, ar: null, ms: "Medium/Large", pct: "29% of Mongolia's total woven imports" },
+            { s: "Light Industry", n: "Best Buidan", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Light Industry", n: "Tod Oims", st: 1, v: 200, ar: null, ms: "Medium/large", pct: null },
+            { s: "Light Industry", n: "Shilmel Buidan", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Light Industry", n: "Bodios", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Light Industry", n: "Torgo Fashion", st: 1, v: 100, ar: null, ms: "Small/Medium", pct: null },
+            { s: "Light Industry", n: "Yanmal", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Light Industry", n: "MARIS Brand", st: 1, v: 100, ar: null, ms: "Small/Medium", pct: null },
+            { s: "Light Industry", n: "Tumen Torgo", st: 1, v: 100, ar: null, ms: "Small/Medium", pct: null },
+            { s: "Light Industry", n: "Ariun", st: 1, v: 300, ar: null, ms: "Large", pct: null },
+            { s: "Light Industry", n: "GOOGOO Brand", st: 1, v: 150, ar: null, ms: null, pct: null },
+            { s: "Light Industry", n: "Чиглэл ХХК", st: 1, v: 200, ar: null, ms: "Medium/Large", pct: null },
+            { s: "Light Industry", n: "Yalguun Accessories", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Light Industry", n: "Uujin", st: 1, v: 100, ar: null, ms: "Small/Medium", pct: null },
+            { s: "Light Industry", n: "Evseg Cashmere", st: 1, v: 200, ar: null, ms: "Medium/Large", pct: null },
+            { s: "Light Industry", n: "Goyol Cashmere", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Light Industry", n: "Darkhan Nekhii", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Light Industry", n: "Darkhan Minj", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Light Industry", n: "Kitchen All", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Light Industry", n: "Тулга Төхөөрөмж", st: 1, v: 150, ar: null, ms: "Medium", pct: null },
+            { s: "Construction", n: "Хөтөл Цемент", st: 2, v: 200, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Цементийн зах зээлийн ~20-25%-ийг хангадаг үндсэн үйлдвэрлэгч" },
+            { s: "Construction", n: "Хурд Групп", st: 1, v: 300, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Орон сууц, үл хөдлөх хөрөнгийн салбарын хамгийн том тоглогчдын нэг" },
+            { s: "Construction", n: "МАК Building", st: 3, v: 400, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-10 ААН (МАК групп)", pct: "Цементийн зах зээлийн ~30-40%, Евро блокны зах зээлийн үнэмлэхүй тэргүүлэгч" },
+            { s: "Construction", n: "Moncon Construction", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Барилга угсралт, төслийн менежментийн (EPC) салбарын тэргүүлэгчдийн нэг" },
+            { s: "Construction", n: "ECO Construction", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Дунд болон дундаас дээш зэрэглэлийн орон сууцны зах зээлийн томоохон тоглогч" },
+            { s: "Construction", n: "Nutgiin Buyan", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Барилга угсралт, хотхоны бүтээн байгуулалтын идэвхтэй тоглогч" },
+            { s: "Construction", n: "Seruun Group", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Орон сууц, барилга угсралтын томоохон төслүүд хэрэгжүүлэгч" },
+            { s: "Construction", n: "Түмэн Төмөрт", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том / Дунд ААН", pct: "Арматур болон төмөр хийцийн худалдаа, нийлүүлэлтийн тэргүүлэгчдийн нэг" },
+            { s: "Construction", n: "Шилэн Хийц", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Шилэн фасад, цонх, хөнгөн цагаан хийцийн зах зээлийн тэргүүлэгч (~30%+)" },
+            { s: "Construction", n: "NCD Group", st: 3, v: 350, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Дээд зэрэглэлийн (Luxury/Premium) орон сууц, хотхоны зах зээлийн үнэмлэхүй тэргүүлэгч" },
+            { s: "Construction", n: "Gangar Invest", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Дунд ААН", pct: "Орон сууц, барилга угсралтын ууган компаниудын нэг" },
+            { s: "Construction", n: "Altai Construction", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Барилга угсралт, үл хөдлөх, дэд бүтцийн томоохон тоглогч" },
+            { s: "Construction", n: "Erel Group", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Барилгын материал (Эрэл цемент, тоосго), угсралтын салбарын суурь компани" },
+            { s: "Construction", n: "Mongol Basalt", st: 1, v: 200, ar: "12.2 тэрбум төгрөг (2024 оны тайлан, ХК)", ms: "ХК (Нээлттэй компани)", pct: "Чулуун хөвөн дулаалгын материалын дотоодын зах зээлийн 60-70%-ийг дангаар хангадаг" },
+            { s: "Construction", n: "Монцемент", st: 1, v: 300, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Цементийн зах зээлийн ~25-30%-ийг хангадаг голлох үйлдвэрлэгч" },
+            { s: "Construction", n: "Puma Construction", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том / Дунд ААН", pct: "Барилга угсралт, орон сууцны төслүүдийн идэвхтэй хөгжүүлэгч" },
+            { s: "Construction", n: "Premium Concrete", st: 1, v: 200, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН (Premium Group)", pct: "Бэлэн бетон зуурмагийн зах зээлийн шилдэг нийлүүлэгчдийн нэг" },
+            { s: "Construction", n: "Teso Properties", st: 3, v: 300, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН (Тэсо групп)", pct: "Шинэ болон холимог бүсийн (Mixed-use) үл хөдлөх хөрөнгийн хүчтэй өрсөлдөгч" },
+            { s: "Construction", n: "Jiguur Grand", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Барилгын салбарын ууган бөгөөд хамгийн олон төсөл хэрэгжүүлсэн томоохон групп" },
+            { s: "Construction", n: "Тэнүүн Өлзий", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Дунд ААН", pct: "Барилга угсралт, засвар үйлчилгээ" },
+            { s: "Construction", n: "Urangan Construction", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Дунд ААН", pct: "Барилга угсралт, орон сууцны төсөл хэрэгжүүлэгч" },
+            { s: "Construction", n: "Өнгөт Төмөр", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Дунд ААН", pct: "Дээвэр, сэндвич хавтан, өнгөт төмрийн дотоодын томоохон нийлүүлэгч" },
+            { s: "Construction", n: "Ган Хийц", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том / Дунд ААН", pct: "Төмөр болон металл хийц эдлэл, сэндвич хавтангийн үндсэн үйлдвэрлэгч" },
+            { s: "Construction", n: "УБ БҮК", st: 1, v: 250, ar: "36.2 тэрбум төгрөг (2025 оны тайлан, ХК)", ms: "ХК (Нээлттэй компани)", pct: "Төмөр бетон хийц эдлэл, инженерийн дэд бүтцийн материалын зах зээлийн хамгийн том тоглогч (~30%+)" },
+            { s: "Construction", n: "Монполимет", st: 1, v: 300, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Монцемент төслийг хэрэгжүүлэгч, барилгын материал болон уул уурхайн томоохон групп" },
+            { s: "Construction", n: "Zag Engineering", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Барилга угсралт, интерьер болон экстерьерийн салбарын тэргүүлэгч ууган компани" },
+            { s: "Food Industry", n: "APU Company", st: 3, v: 1100, ar: "1.1 их наяд төгрөг (2023 оны тайлан, ХК)", ms: "ХК / ТОП-10 ААН", pct: "Шингэн хүнс, согтууруулах ундаа, сүүний зах зээлийн үнэмлэхүй тэргүүлэгч (~60-70%+)" },
+            { s: "Food Industry", n: "SUU JSC", st: 3, v: 300, ar: "147.8 тэрбум төгрөг (2023 оны тайлан, ХК)", ms: "ХК / ТОП-100 ААН", pct: "Сүү, сүүн бүтээгдэхүүний зах зээлийн тэргүүлэгч (~40-50%)" },
+            { s: "Food Industry", n: "Vitafit Group", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Жүүс, ундаа, сүүн бүтээгдэхүүний голлох үйлдвэрлэгч" },
+            { s: "Food Industry", n: "MonFresh", st: 1, v: 200, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Жүүс болон сүүн бүтээгдэхүүний томоохон үйлдвэрлэгч" },
+            { s: "Food Industry", n: "Gem International", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Архи, шар айраг, шингэн хүнсний томоохон тоглогч" },
+            { s: "Food Industry", n: "MCS Coca-Cola", st: 3, v: 300, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Хийжүүлсэн ундааны зах зээлийн тэргүүлэгч (Coca-Cola брэнд)" },
+            { s: "Food Industry", n: "Green Group", st: 3, v: 300, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Хүнсний үйлдвэрлэл, импорт, түгээлтийн салбарын тэргүүлэгч" },
+            { s: "Food Industry", n: "Trust Trade", st: 1, v: 200, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Хиам, махан бүтээгдэхүүний зах зээлийн голлох үйлдвэрлэгч" },
+            { s: "Food Industry", n: "Хүн Од", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Дунд ААН", pct: "Хиам, махан бүтээгдэхүүний танигдсан, туршлагатай үйлдвэрлэгч" },
+            { s: "Food Industry", n: "Uguuj JSC", st: 1, v: 250, ar: "Мэдээлэл хязгаарлагдмал (ХК)", ms: "ХК / ТОП-100 ААН", pct: "Чихэр, нарийн боовны зах зээлийн тэргүүлэгч (~30-40%)" },
+            { s: "Food Industry", n: "Хаан Хүнс", st: 1, v: 200, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том / Дунд ААН", pct: "Хагас боловсруулсан бүтээгдэхүүн, түргэн хоолны сүлжээний тэргүүлэгч" },
+            { s: "Food Industry", n: "Тэнгэрийн хишиг", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Дунд ААН", pct: "Махан бүтээгдэхүүн, хиамны үйлдвэрлэл" },
+            { s: "Food Industry", n: "Teso Foods", st: 3, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН (Тэсо групп)", pct: "Зайрмаг, гоймон, хуурай сүүний үйлдвэрлэлээр тэргүүлэгч" },
+            { s: "Food Industry", n: "Ochir Daginas", st: 1, v: 200, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Хиам, махан бүтээгдэхүүний голлох үйлдвэрлэгчдийн нэг" },
+            { s: "Food Industry", n: "Altan Taria", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Гурил, гурилан бүтээгдэхүүний зах зээлийн ууган бөгөөд томоохон тоглогч" },
+            { s: "Food Industry", n: "Ulaanbaatar Guril", st: 3, v: 300, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Гурилын зах зээлийн тэргүүлэгч (~30%+)" },
+            { s: "Food Industry", n: "Талх Чихэр", st: 1, v: 250, ar: "122.2 тэрбум төгрөг (2023 оны тайлан, ХК)", ms: "ХК / ТОП-100 ААН", pct: "Талх, гурилан бүтээгдэхүүний хамгийн том үйлдвэрлэгч (~40-50%)" },
+            { s: "Food Industry", n: "Jur Ur", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Бялуу, шинэхэн нарийн боовны зах зээлийн үнэмлэхүй тэргүүлэгч" },
+            { s: "Food Industry", n: "Газар Шим", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Дунд ААН", pct: "Даршилсан ногоо, нөөшилсөн бүтээгдэхүүний үндэсний тэргүүлэгч" },
+            { s: "Food Industry", n: "AUBeverages", st: 1, v: 200, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том / Дунд ААН", pct: "Шингэн хүнс, ундааны зах зээлийн тоглогч" },
+            { s: "Food Industry", n: "Атар Өргөө", st: 1, v: 200, ar: "Мэдээлэл хязгаарлагдмал (ХК)", ms: "ХК / ТОП-100 ААН", pct: "Талх, гурилан бүтээгдэхүүний ууган бөгөөд томоохон үйлдвэрлэгч" },
+            { s: "Food Industry", n: "Түмэн Шувуут", st: 1, v: 150, ar: "63.0 тэрбум төгрөг (2023 оны тайлан, ХК)", ms: "ХК / ТОП-100 ААН", pct: "Өндөгний зах зээлийн тэргүүлэгч (~40-50%)" },
+            { s: "Food Industry", n: "НВЦ", st: 1, v: 200, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Өндөг болон шувууны аж ахуйн томоохон тоглогч (\"Баян\" өндөгний үйлдвэрлэгч)" },
+            { s: "Food Industry", n: "Max Impex", st: 1, v: 250, ar: "Мэдээлэл хязгаарлагдмал (ХК)", ms: "Том ААН", pct: "Хүнсний бүтээгдэхүүний импорт, дистрибьютерийн томоохон тоглогч" },
+            { s: "Food Industry", n: "Баян", st: 1, v: 150, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Дунд ААН", pct: "Хүнс болон өндөгний үйлдвэрлэл (НВЦ-ийн брэнд эсвэл бие даасан хүнсний ААН)" },
+            { s: "Food Industry", n: "Gatsuurt", st: 1, v: 250, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Газар тариалан, хөдөө аж ахуй, хүнсний ногооны хамгийн том нийлүүлэгч" },
+            { s: "Food Industry", n: "Khuns Complex", st: 1, v: 250, ar: "Мэдээлэл хязгаарлагдмал (ХК)", ms: "ХК / Том ААН", pct: "Мах, махан бүтээгдэхүүн, нөөшилсөн бүтээгдэхүүний үйлдвэрлэл (Мах Импекс)" },
+            { s: "Food Industry", n: "Delta Foods", st: 1, v: 200, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Өргөн хэрэглээний хүнсний импорт, түгээлтийн томоохон тоглогч" },
+            { s: "Food Industry", n: "GN Beverages", st: 1, v: 200, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Хийжүүлсэн ундааны томоохон тоглогч (Pepsi брэндийн албан ёсны савлагч)" },
+            { s: "IT", n: "Fibo Cloud", st: 1, v: 100, ar: null, ms: "Гарааны / Дунд ААН", pct: "Клауд технологи, дэд бүтцийн салбарын тэргүүлэгчдийн нэг" },
+            { s: "IT", n: "Erxes Inc", st: 1, v: 100, ar: null, ms: "Гарааны / Дунд ААН", pct: "Нээлттэй эх бүхий маркетинг, CRM системийн олон улсад танигдсан гарааны компани" },
+            { s: "IT", n: "Chimege Systems", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Хиймэл оюун ухаан, хэл яриа таних технологийн анхдагч бөгөөд тэргүүлэгч" },
+            { s: "IT", n: "E-mongolia", st: 2, v: 300, ar: "Төсвөөс санхүүждэг (ТӨҮГ)", ms: "Төрийн байгууллага", pct: "Төрийн цахим үйлчилгээний нэгдсэн платформын хөгжүүлэгч (И-Монгол Академи)" },
+            { s: "IT", n: "Shoppy", st: 3, v: 200, ar: null, ms: "Том / Дунд ААН", pct: "Цахим худалдааны (e-commerce) тэргүүлэгч платформ" },
+            { s: "IT", n: "Zary", st: 3, v: 100, ar: null, ms: "Дунд ААН", pct: "Цахим худалдаа, зарын нэгдсэн платформ" },
+            { s: "IT", n: "Zochil", st: 1, v: 100, ar: null, ms: "Гарааны / Дунд ААН", pct: "Цахим дэлгүүр үүсгэх SaaS дэд бүтцийн үйлчилгээний платформуудын нэг" },
+            { s: "IT", n: "Empasoft", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Мэдээллийн технологийн сургалт (Академи), зөвлөх үйлчилгээ, системийн интеграци" },
+            { s: "IT", n: "Infinite Solutions", st: 1, v: 200, ar: null, ms: "Том / Дунд ААН", pct: "Финтек, блокчэйн болон мэдээллийн систем хөгжүүлэлтийн томоохон компани" },
+            { s: "IT", n: "CallPro", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Үүлэн технологид суурилсан харилцаа холбоо, мессеж үйлчилгээний тэргүүлэгч" },
+            { s: "IT", n: "Kewiko", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Утасгүй интернэт (WIFI), сүлжээний үйлчилгээ үзүүлэгч" },
+            { s: "IT", n: "Interactive BI", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Хүний нөөц (Human system) болон ERP систем хөгжүүлэлтийн тэргүүлэгчдийн нэг" },
+            { s: "IT", n: "ITools", st: 1, v: 100, ar: "4.4 тэрбум төгрөг (2024 он, ХК)", ms: "ХК / Дунд ААН", pct: "Дата төв, домэйн, клауд үйлчилгээний анхдагч бөгөөд голлох компаниудын нэг" },
+            { s: "IT", n: "Datacom", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Домэйн нэрийн бүртгэл, вэб хостинг үйлчилгээний ууган бөгөөд тэргүүлэгч компани" },
+            { s: "IT", n: "Smart Logic", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Программ хангамж болон системийн хөгжүүлэлт" },
+            { s: "IT", n: "Bolorsoft", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Хиймэл оюун ухаан, хэл шинжлэлийн программ хангамжийн анхдагч (Болор толь)" },
+            { s: "IT", n: "Timely", st: 3, v: 100, ar: null, ms: "Гарааны / Дунд ААН", pct: "Цаг бүртгэл, хүний нөөцийн цахим системийн (SaaS) амжилттай стартап" },
+            { s: "IT", n: "Mongol iD", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Дижитал үнэмлэх, хэрэглэгчийн бааз болон цахим худалдааны систем хөгжүүлэгч" },
+            { s: "IT", n: "Tech Pack", st: 3, v: 100, ar: null, ms: "Дунд ААН", pct: "Программ хангамжийн хөгжүүлэлт болон аутсорсинг" },
+            { s: "IT", n: "GrapeCity", st: 1, v: 200, ar: null, ms: "Том ААН", pct: "Банк, санхүүгийн суурь системийн (Core banking) үнэмлэхүй тэргүүлэгч" },
+            { s: "IT", n: "Cody", st: 3, v: 100, ar: null, ms: "Дунд ААН", pct: "Цахим худалдаа, лоялти болон супер апп-ын систем хөгжүүлэлт" },
+            { s: "IT", n: "Veritech ERP", st: 1, v: 200, ar: null, ms: "Дунд / Том ААН", pct: "Байгууллагын нөөц төлөвлөлтийн цогц систем (ERP) хөгжүүлэлтийн дотоодын тэргүүлэгч" },
+            { s: "IT", n: "Able Soft", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Албан хэрэг хөтлөлт, байгууллагын дотоод удирдлагын системийн (Able) голлох тоглогч" },
+            { s: "IT", n: "Greensoft", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Вэб болон программ хангамж, төрийн цахим системийн хөгжүүлэлт" },
+            { s: "IT", n: "Tuss Solutions", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Системийн инженерчлэл, байгууллагын удирдлагын онолд суурилсан программ хөгжүүлэлт" },
+            { s: "IT", n: "Data Care", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Программ хангамжийн хөгжүүлэлт, мэдээллийн технологийн үйлчилгээ" },
+            { s: "IT", n: "Ontime", st: 3, v: 100, ar: null, ms: "Гарааны / Дунд ААН", pct: "Хүргэлт, ложистикийн систем болон программ хөгжүүлэлт" },
+            { s: "IT", n: "Baaz", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Үүлэн технологид суурилсан нягтлан бодох бүртгэлийн системийн тэргүүлэгч (SaaS)" },
+            { s: "IT", n: "Egulen Systems", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Үйлчилгээний байгууллага, рестораны ПОС болон удирдлагын үүлэн систем хөгжүүлэгч" },
+            { s: "IT", n: "Zangia.mn", st: 1, v: 200, ar: null, ms: "Том / Дунд ААН", pct: "Ажлын байр, хүний нөөцийн зуучлалын нэгдсэн цахим платформын үнэмлэхүй тэргүүлэгч" },
+            { s: "IT", n: "Gerege Systems", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Төлбөр тооцоо, киоск болон эрүүл мэндийн цахим системийн томоохон хөгжүүлэгч" },
+            { s: "IT", n: "Astvision", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Банк, санхүү болон төрийн байгууллагуудын томоохон систем хөгжүүлэлт" },
+            { s: "IT", n: "Dayansoft", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Нягтлан бодох бүртгэл болон ПОС системийн голлох хөгжүүлэгчийн нэг" },
+            { s: "IT", n: "Smart Software", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Программ хангамж болон бизнесийн удирдлагын систем" },
+            { s: "IT", n: "Digital Works", st: 3, v: 100, ar: null, ms: "Дунд ААН", pct: "Вэб сайт, гар утасны аппликейшн хөгжүүлэлт, дижитал шийдэл" },
+            { s: "IT", n: "Ultimate Solutions", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Программ хангамжийн хөгжүүлэлт, ERP болон системийн интеграци" },
+            { s: "IT", n: "Cubic Soft", st: 1, v: 100, ar: null, ms: "Дунд ААН", pct: "Программ хангамжийн хөгжүүлэлт болон мэдээллийн технологийн зөвлөх үйлчилгээ" },
+            { s: "IT", n: "Manage Wall", st: 1, v: 100, ar: null, ms: "Гарааны / Дунд ААН", pct: "Байгууллагын дотоод удирдлага, санхүү болон үйл ажиллагааны систем хөгжүүлэлт" },
+            { s: "Mining", n: "Оюу Толгой", st: 2, v: 1500, ar: "~6.0 их наяд төгрөг (2023 оны тайлан)", ms: "ТОП-100 ААН (Тэргүүлэгч)", pct: "Зэс, алтны экспортын үнэмлэхүй тэргүүлэгч, хамгийн том уурхай" },
+            { s: "Mining", n: "Эрдэнэс Тавантолгой", st: 2, v: 1200, ar: "10.3 их наяд төгрөг (2024 оны тайлан, ХК)", ms: "ТОП-100 ААН (Тэргүүлэгч)", pct: "Нүүрсний экспортын хамгийн том компани" },
+            { s: "Mining", n: "Энержи Ресурс", st: 2, v: 1000, ar: "~1.0 тэрбум ам.доллар (2024 оны тайлан, толгой компани MMC)", ms: "ТОП-100 ААН", pct: "Баяжуулсан коксжих нүүрсний экспортын голлох тоглогч" },
+            { s: "Mining", n: "МАК (Уул уурхай)", st: 2, v: 800, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Нүүрс, уул уурхай болон барилгын материалын томоохон групп" },
+            { s: "Mining", n: "Эрдэнэт Үйлдвэр", st: 2, v: 900, ar: "4.0 их наяд төгрөг (2023 оны тайлан, ТӨҮГ)", ms: "ТОП-100 ААН (Тэргүүлэгч)", pct: "Зэс, молибденийн баяжмалын үйлдвэрлэлийн гол багана" },
+            { s: "Mining", n: "Дарханы Төмөрлөг", st: 2, v: 400, ar: "291.7 тэрбум төгрөг (2024 оны тайлан, ТӨХК)", ms: "ТОП-100 ААН", pct: "Төмрийн хүдэр, ган цувимал үйлдвэрлэлийн тэргүүлэгч" },
+            { s: "Mining", n: "SouthGobi Sands", st: 2, v: 500, ar: "493.0 сая ам.доллар (2024 оны тайлан, толгой компани)", ms: "ТОП-100 ААН", pct: "Нүүрсний экспортын томоохон тоглогч" },
+            { s: "Mining", n: "Wagnerasia", st: 1, v: 400, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Уул уурхайн хүнд машин механизмын (Caterpillar) нийлүүлэлтээр үнэмлэхүй тэргүүлэгч" },
+            { s: "Mining", n: "Boroo Gold", st: 2, v: 400, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Алт олборлолтын голлох компаниудын нэг" },
+            { s: "Mining", n: "Tsairt Mineral", st: 2, v: 400, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "ТОП-100 ААН", pct: "Цайрын баяжмалын үндсэн үйлдвэрлэгч" },
+            { s: "Mining", n: "Badrakh Energy", st: 2, v: 300, ar: "Мэдээлэл нээлттэй бус (ХХК)", ms: "Том ААН", pct: "Уран хайгуул, олборлолтын төслийн цор ганц томоохон төлөөлөл" },
+            { s: "Mining", n: "Багануур ХК", st: 2, v: 300, ar: "213.1 тэрбум төгрөг (2023 оны тайлан, ХК)", ms: "ТОП-100 ААН", pct: "Дотоодын эрчим хүчний нүүрсний ~60%-ийг дангаар хангагч" },
+            { s: "Mining", n: "Шивээ Овоо ХК", st: 2, v: 200, ar: "67.5 тэрбум төгрөг (2023 оны тайлан, ХК)", ms: "ТОП-100 ААН", pct: "Дотоодын эрчим хүчний нүүрсний ~30%-ийг хангагч" },
+            { s: "Mining", n: "Steppe Gold", st: 2, v: 300, ar: "Мэдээлэл хязгаарлагдмал (ХК)", ms: "Том ААН", pct: "Алт олборлолтын салбарын өсөж буй томоохон компани" },
+            { s: "Mining", n: "Xanadu Mines", st: 2, v: 300, ar: "Хайгуулын шатны компани (Борлуулалтын орлогогүй, ХК)", ms: "Том ААН", pct: "Зэс, алтны хайгуулын (Хармагатай төсөл) тэргүүлэх компани" },
+            { s: "Mining", n: "Монголросцветмет", st: 2, v: 400, ar: "Мэдээлэл хязгаарлагдмал (ТӨҮГ)", ms: "ТОП-100 ААН", pct: "Жонш болон төмрийн хүдэр олборлолтын голлох компани" },
+            { s: "Mining", n: "Erdene Resource", st: 2, v: 300, ar: "Хайгуулын / Бүтээн байгуулалтын шат (Борлуулалтын орлогогүй, ХК)", ms: "Том ААН", pct: "Алтны хайгуул, уурхайн бүтээн байгуулалтын (Баян Хөндий төсөл) компани" }
+        ];
+
+        // Датаг салбараар нь ангилах
+        const groupedData = {};
+        allData.forEach(item => {
+            if (!groupedData[item.s]) {
+                groupedData[item.s] = [];
+            }
+            groupedData[item.s].push({
+                name: item.n,
+                value: item.v,
+                annualRevenue: item.ar,
+                marketShare: item.ms,
+                percentage: item.pct,
+                itemStyle: { color: item.st === 1 ? colorGreen : item.st === 2 ? colorRed : colorOrange }
+            });
+        });
+
+        // 20 Цэсийг (Tab) автоматаар үүсгэх хэсэг
+        function initTabs() {
+            const tabsContainer = document.getElementById('tabs-container');
+            
+            // "Бүх салбар" цэс хамгийн түрүүнд
+            const btnAll = document.createElement('button');
+            btnAll.className = 'tab-btn active';
+            btnAll.innerText = `Бүх салбар (${allData.length})`;
+            btnAll.onclick = function() { switchTab('all', this); };
+            tabsContainer.appendChild(btnAll);
+
+            // Бусад 20 салбарын цэснүүд
+            Object.keys(groupedData).forEach(sector => {
+                const btn = document.createElement('button');
+                btn.className = 'tab-btn';
+                btn.innerText = `${sector} (${groupedData[sector].length})`;
+                btn.onclick = function() { switchTab(sector, this); };
+                tabsContainer.appendChild(btn);
+            });
+        }
+
+        // График зурах үйлдэл
+        function updateChart(sectorKey) {
+            if (!myChart) return;
+            
+            let currentData = [];
+            let isAllSectors = false;
+
+            if (sectorKey === 'all') {
+                isAllSectors = true;
+                Object.keys(groupedData).forEach(s => {
+                    currentData.push({
+                        name: s,
+                        children: groupedData[s]
+                    });
+                });
+            } else {
+                currentData = groupedData[sectorKey];
+            }
+
+            const option = {
+                tooltip: {
+                    backgroundColor: '#161b22',
+                    borderColor: '#30363d',
+                    padding: 12,
+                    textStyle: { color: '#c9d1d9' },
+                    formatter: function (info) {
+                        const data = info.data;
+                        if (data.children) {
+                            return `<div style="min-width: 150px;">
+                                        <div style="font-weight:800; color:#fff; font-size: 15px; margin-bottom: 5px;">${info.name}</div>
+                                        <div style="color:#8b949e; font-size: 13px;">Нийт компани: <b style="color:#58a6ff;">${data.children.length}</b></div>
+                                    </div>`;
+                        }
+
+                        const annualRevenue = data.annualRevenue ?? '—';
+                        const marketShare = data.marketShare ?? '—';
+                        const percentage = data.percentage ?? '—';
+
+                        return `<div style="min-width: 220px;">
+                                    <div style="font-weight:800; color:#fff; font-size: 15px; margin-bottom: 8px;">${echarts.format.encodeHTML(info.name)}</div>
+                                    <div style="color:#8b949e; font-size: 13px; line-height: 1.7;">
+                                        <div>Annual revenue: <b style="color:#58a6ff;">${echarts.format.encodeHTML(String(annualRevenue))}</b></div>
+                                        <div>Market Share: <b style="color:#58a6ff;">${echarts.format.encodeHTML(String(marketShare))}</b></div>
+                                        <div>Percentage: <b style="color:#58a6ff;">${echarts.format.encodeHTML(String(percentage))}</b></div>
+                                    </div>
+                                </div>`;
+                    }
+                },
+                series: [{
+                    type: 'treemap',
+                    width: '100%',
+                    height: '100%',
+                    roam: false, 
+                    nodeClick: false,
+                    breadcrumb: { show: false },
+                    label: {
+                        show: true,
+                        formatter: '{b}',
+                        color: '#ffffff',
+                        fontSize: isAllSectors ? 11 : 14, // Бүх салбарыг харахад үсэг жижигсэж багтана
+                        fontWeight: 600,
+                        fontFamily: 'Inter',
+                        textShadowBlur: 2,
+                        textShadowColor: 'rgba(0,0,0,0.8)'
+                    },
+                    upperLabel: {
+                        show: isAllSectors,
+                        height: 30,
+                        color: '#ffffff',
+                        fontWeight: 'bold',
+                        fontSize: 13,
+                        fontFamily: 'Inter',
+                        backgroundColor: '#161b22',
+                        borderColor: '#30363d',
+                        borderWidth: 1
+                    },
+                    itemStyle: {
+                        borderColor: '#0d1117',
+                        borderWidth: 2,
+                        gapWidth: 2
+                    },
+                    levels: isAllSectors ? [
+                        { itemStyle: { borderColor: '#30363d', borderWidth: 3, gapWidth: 3 } },
+                        { itemStyle: { borderColor: '#0d1117', borderWidth: 1.5, gapWidth: 1.5 } }
+                    ] : [
+                        { itemStyle: { borderColor: '#0d1117', borderWidth: 2, gapWidth: 2 } }
+                    ],
+                    data: currentData
+                }]
+            };
+            
+            myChart.setOption(option, true);
+        }
+
+        function switchTab(sectorKey, btnElement) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+            updateChart(sectorKey);
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            var chartDom = document.getElementById('main');
+            if (typeof echarts === 'undefined') return;
+
+            myChart = echarts.init(chartDom);
+            
+            initTabs();
+            updateChart('all');
+            
+            window.addEventListener('resize', function() {
+                if(myChart) myChart.resize();
+            });
+        });
+    </script>
+</body>
+</html>
